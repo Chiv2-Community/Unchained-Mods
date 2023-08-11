@@ -14,8 +14,9 @@ e.g. `open agmods?map=ffa_wardenglade?mods=ExampleMod,GiantSlayers,Peasants`
 ## [TEMPORARY] Adding this repo to UE Project Content directory
 1. Create `Mods` folder inside the Content directory of ArgonSDK and open it
 2. Clone this repository using following command:
+
   `git clone git@github.com:Chiv2-Community/ArgonSDK-Mods.git ArgonSDK`
-> You should now have a folder named ArgonSDK (`<Main Repo dir>/Content/ArgonSDK`)
+> You should now have a folder named ArgonSDK (`<Main Repo dir>/Content/Mods/ArgonSDK`)
 
 # Creating a mod
 ## Creating a mod Actor
