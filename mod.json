@@ -1,10 +1,9 @@
 {
-  "repo_url": "https://github.com/Chiv2-Community/ArgonSDK-Mods",
   "name": "ArgonSDK-Mods",
   "description": "Mod Loading Framework and default mods",
   "mod_type": "Shared",
   "authors": [ "Knutschbert" ],
   "dependencies": [],
-  "tags": [ "Mods" ]
+  "tags": [ "Assets" ]
 }
     
