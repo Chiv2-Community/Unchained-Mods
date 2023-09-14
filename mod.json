@@ -1,8 +1,10 @@
 {
+  "repo_url": "https://github.com/Chiv2-Community/ArgonSDK-Mods",
   "name": "ArgonSDK-Mods",
-  "description": "Mod Loading Framework\n\nStarting a map with mods enabled:\n\t\topen agmods?map<map_name>?mods=<comma_separated_mods>\n\n\te.g. open agmods?map=ffa_wardenglade?mods=ExampleMod,GiantSlayers,Peasants",
+  "description": "Mod Loading Framework and default mods",
   "mod_type": "Shared",
   "authors": [ "Knutschbert" ],
   "dependencies": [],
-  "tags": []
+  "tags": [ "Mods" ]
 }
+    
