@@ -1,9 +1,9 @@
 {
-  "repo_url": "https://github.com/Chiv2-Community/ArgonSDK-Mods",
-  "name": "ArgonSDK-Mods",
+  "repo_url": "https://github.com/Chiv2-Community/Unchained-Mods",
+  "name": "Unchained-Mods",
   "description": "Mod Loading Framework and default mods",
   "mod_type": "Shared",
-  "authors": [ "Knutschbert" ],
+  "authors": [ "Nihi" ],
   "dependencies": [],
   "tags": [ "Doodad" ]
 }
