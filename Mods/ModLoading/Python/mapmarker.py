@@ -32,6 +32,7 @@ Actions (editor):
     update_layers(marker)      recompute ShippedMapLayers
     required_maps(marker)      what a cook must include: shipped + extra + layers
     validate(marker)           read-only audit, returns the problems found
+    refresh_summaries(marker)  re-pull every row's summary (name/desc/gamemode/faction) from the AR
     clear_maps(marker)         empty shipped / ignored / layers (keeps the settings)
     find_markers(folder)       the map markers below a folder
     cook_plan(folder)          what the cooker should cook for a mod folder (None = no marker)

@@ -202,6 +202,25 @@ def run_validate(package_path):
         _say('Validate map marker', ['{0} problem(s):'.format(len(r['issues']))] + _short(r['issues'], 15) + [summary], always=True)
 
 
+def run_refresh_summaries(package_path):
+    """Menu: re-pull every row's summary (name/description/gamemode/faction) from the Asset Registry.
+
+    This is the write counterpart to Validate: Validate only reports drifted or missing
+    summaries, Populate only fills summaries on maps it newly adds. Use this after adding a
+    map to the marker by hand, or when Validate reports a summary is out of date.
+    """
+    r = _run('Refresh map summaries', lambda: mapmarker.refresh_summaries(package_path))
+    if r is None:
+        return
+    lines = ['Refreshed {0} map summar(ies); {1} map(s) have no Asset Registry summary.'.format(
+        len(r['updated']), len(r['missing']))]
+    if r['missing']:
+        lines.append('No summary - open and re-save the map(s): ' + ', '.join(_short(r['missing'], 8)))
+    for p in r['updated']:
+        _log('refreshed ' + p)
+    _say('Refresh map summaries', lines + ['refreshed ' + p for p in r['updated']])
+
+
 def run_list_maps(package_path):
     """Menu: list what a cook of this marker needs - shipped, extra and layer maps."""
     r = _run('List required maps', lambda: mapmarker.required_maps(package_path))
@@ -267,6 +286,11 @@ ACTIONS = (
     ('ArgonMapMarkerValidate', 'Validate marker', 'run_validate',
      'Read-only audit: stale or conflicting entries, shipped maps that are layers, out-of-date layers.',
      'LevelEditor.MapCheck', 'Validate'),
+    ('ArgonMapMarkerRefresh', 'Refresh map summaries', 'run_refresh_summaries',
+     'Re-pull each shipped map\'s name, description, gamemode and faction from the Asset Registry '
+     '(fixes summaries Validate flags as missing or out of date, e.g. after adding a map by hand). '
+     'Keeps State and loading screens; loads no maps.',
+     'AssetEditor.ReimportAsset', 'Refresh'),
     ('ArgonMapMarkerList', 'List required maps', 'run_list_maps',
      'List the maps a cook of this marker needs: shipped, extra and their layers.',
      'LevelEditor.WorldProperties', 'List maps'),
@@ -323,7 +347,7 @@ class PopupToggleEntry(unreal.ToolMenuEntryScript):
 def _make_toggle():
     entry = PopupToggleEntry()
     entry.init_entry(OWNER, TOOLBAR_NAME, TOOLBAR_SECTION, 'ArgonMapMarkerPopupsTb', 'Popups',
-                     'When ticked, Populate / Preview / Ignore unused / Update layers show a message box with the '
+                     'When ticked, Populate / Preview / Ignore unused / Update layers / Refresh map summaries show a message box with the '
                      'result. Off: the result goes to the Output Log with a short on-screen note. Validate, List '
                      'maps and Clear always show one.')
     data = entry.get_editor_property('data')
