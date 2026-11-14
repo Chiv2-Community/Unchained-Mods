@@ -192,7 +192,7 @@ def plan_stamps(tree, versions, lookup):
     changes = {}
     for marker, folder in sorted(tree['dir'].items()):
         wanted = lookup(folder, tree['parent'].get(marker) is not None)
-        if wanted and versions.get(marker, '') != wanted:
+        if wanted is not None and versions.get(marker, '') != wanted:
             changes[marker] = wanted
     return changes
 
@@ -209,8 +209,12 @@ def plan_marker_versions(tree, versions, lookup, paks, bundle_flags, scope):
     wanted = {}
     for marker in scope:
         found = lookup(tree['dir'][marker], tree['parent'].get(marker) is not None)
-        if found:
+        if found is not None:
             wanted[marker] = found
+        elif versions.get(marker, ''):
+            # Missing metadata must not leave an old marker version in place.
+            # Clearing it lets a nested marker inherit from its parent.
+            wanted[marker] = ''
     claimed = set()
     for pak in paks:
         root = pak['root']
@@ -267,6 +271,19 @@ def pattern_matches(rel_path, pattern):
     regex = _pattern_regex(pat)
     parts = rel.split('/')
     return any(regex.match('/'.join(parts[:i])) for i in range(1, len(parts) + 1))
+
+
+def excluded(rel_path, patterns):
+    """True when any ExcludedPaths wildcard/prefix matches the relative asset path."""
+    return any(pattern_matches(rel_path, pattern) for pattern in (patterns or ()))
+
+
+def _class_excluded(class_path, folder, patterns):
+    package = class_path.split('.')[0].replace('\\', '/')
+    prefix = folder.rstrip('/') + '/'
+    if not package.startswith(prefix):
+        return False
+    return excluded(package[len(prefix):], patterns)
 
 
 ARGON_MODS_REPO = 'https://github.com/Chiv2-Community/ArgonSDK-Mods'
@@ -652,6 +669,40 @@ def owned_mod_classes(marker, all_markers=None, parents=None):
                   if owned_by(c.split('.')[0], folder, others) and descends_from(parents, c, MOD_BASE_CLASS))
 
 
+def unlisted_actor_packages(info, tree, scope):
+    """Return package paths for V2 mod actors not listed by their owning marker.
+
+    A package is excluded only when none of its actor classes are listed. This
+    avoids dropping a package that contains both an explicitly shipped actor
+    and another unlisted class.
+    """
+    parents = _parent_map()
+    excluded = set()
+    warnings = []
+    scoped = set(scope)
+    all_markers = list(tree['dir'])
+    for marker in sorted(scoped):
+        all_classes = owned_mod_classes(marker, all_markers=all_markers, parents=parents)
+        listed = set(info.get(marker, {}).get('classes') or [])
+        by_package = {}
+        for class_path in all_classes:
+            by_package.setdefault(class_path.split('.')[0], []).append(class_path)
+        for package, classes in by_package.items():
+            if not any(c in listed for c in classes):
+                excluded.add(package)
+
+    if excluded:
+        registry = _registry()
+        options = _mapmarker()._dependency_options()
+        folders = [tree['dir'][m].rstrip('/') for m in scoped]
+        for package in sorted(excluded):
+            for ref in registry.get_referencers(package, options) or []:
+                ref = str(ref)
+                if ref.startswith('/Game/') and any(ref == f or ref.startswith(f + '/') for f in folders) and ref not in excluded:
+                    warnings.append('unlisted mod actor {0} is referenced by shipped asset {1}'.format(package, ref))
+    return sorted(excluded), sorted(set(warnings))
+
+
 def init_marker(marker, dry_run=False, save=True, parents=None):
     """Fill a marker from its folder: FormatVersion, ModId (only when empty), missing ModActorClasses.
 
@@ -664,9 +715,13 @@ def init_marker(marker, dry_run=False, save=True, parents=None):
     mm = _mapmarker()
     package, asset = mm._load_marker(marker)
     folder = marker_dir(package)
-    result = {'added_classes': [], 'id_set': False, 'id_source': None}
+    result = {'added_classes': [], 'excluded_classes': [], 'id_set': False, 'id_source': None}
     have = set(_paths(asset, P_CLASSES))
+    patterns = [str(x) for x in asset.get_editor_property(P_EXCLUDE)]
+    result['excluded_classes'] = sorted(c for c in have if _class_excluded(c, folder, patterns))
+    have -= set(result['excluded_classes'])
     classes = [c for c in owned_mod_classes(package, parents=parents) if c not in have]
+    classes = [c for c in classes if not _class_excluded(c, folder, patterns)]
     result['added_classes'] = classes
     new_id = None
     if not str(asset.get_editor_property(P_ID)):
@@ -683,6 +738,11 @@ def init_marker(marker, dry_run=False, save=True, parents=None):
         value = asset.get_editor_property(P_CLASSES)
         for c in classes:
             value.add(unreal.SoftClassPath(c))
+        asset.set_editor_property(P_CLASSES, value)
+    if result['excluded_classes']:
+        value = asset.get_editor_property(P_CLASSES)
+        for c in result['excluded_classes']:
+            value.discard(unreal.SoftClassPath(c))
         asset.set_editor_property(P_CLASSES, value)
     if save:
         mm._save(asset)
@@ -710,10 +770,10 @@ def refresh_marker(marker, dry_run=False, save=True, parents=None):
     current = str(asset.get_editor_property(P_VERSION))
     read_json = _read_mod_json_factory()
     wanted = plan_stamps(tree, {package: current}, lambda f, exact: mod_json_version(f, read_json, exact=exact)).get(package)
-    result['version_set'] = wanted if wanted and wanted != current else None
+    result['version_set'] = wanted if wanted is not None and wanted != current else None
     if not dry_run and result['version_set']:
         asset.set_editor_property(P_VERSION, result['version_set'])
-    if not dry_run and save and (result['added_classes'] or result['removed_classes'] or result['id_set'] or result['version_set']):
+    if not dry_run and save and (result['added_classes'] or result['excluded_classes'] or result['removed_classes'] or result['id_set'] or result['version_set']):
         mm._save(asset)
     return result
 
@@ -912,8 +972,15 @@ def plan(folder):
     result['ids'] = ids
     result['dirs'] = dict(tree['dir'])
     result['excluded'] = dict((m, list(d['exclude'])) for m, d in info.items())
+    read_json = _read_mod_json_factory()
+    result['json_versions'] = dict((m, mod_json_version(tree['dir'][m], read_json, exact=tree['parent'].get(m) is not None))
+                                   for m in info)
     result['replaces'] = dict((pak['stem'], sorted(set(t for m in pak['markers'] for t in replaced_assets(m))))
-                              for pak in result['paks'])
+                               for pak in result['paks'])
+    packed_markers = sorted(set(m for pak in result['paks'] for m in pak['markers']))
+    result['actor_excluded'], actor_warnings = unlisted_actor_packages(
+        info, tree, scope=packed_markers)
+    result['warnings'].extend(actor_warnings)
     return result
 
 
@@ -992,7 +1059,8 @@ def stamp_all(folder, dry_run=False, save=True, actors=True):
             asset.set_editor_property(P_VERSION, version)
             if save:
                 mm._save(asset)
-    result = {'markers': changes, 'actors': {}}
+    missing_versions = sorted(m for m in scope if not mod_json_version(tree['dir'][m], read_json, exact=tree['parent'].get(m) is not None))
+    result = {'markers': changes, 'actors': {}, 'missing_versions': missing_versions}
     if actors:
         after = dict(versions)
         after.update(changes)

@@ -38,6 +38,8 @@ def run_refresh(package_path):
     if r is None:
         return
     parts = ['Added {0} mod actor class(es)'.format(len(r['added_classes']))]
+    if r.get('excluded_classes'):
+        parts.append('removed {0} excluded class(es)'.format(len(r['excluded_classes'])))
     if r['removed_classes']:
         parts.append('removed {0} that belong to nested markers'.format(len(r['removed_classes'])))
     if r['id_set']:
@@ -45,7 +47,30 @@ def run_refresh(package_path):
     if r['version_set']:
         parts.append('ModVersion set to {0} from mod.json'.format(r['version_set']))
     base._say('Refresh mod marker', ['; '.join(parts) + '.'] + ['added ' + c for c in r['added_classes']]
+              + ['excluded ' + c for c in r.get('excluded_classes', [])]
               + ['removed ' + c for c in r['removed_classes']])
+
+
+def run_toolbar_refresh(fallback_package=None):
+    """Refresh the marker selected when the toolbar button is clicked.
+
+    Toolbar sections can be constructed before the user changes the Content
+    Browser selection. Prefer the current selection and retain the captured
+    package only as a fallback for the asset editor that opened the toolbar.
+    """
+    target = None
+    try:
+        selected = unreal.EditorUtilityLibrary.get_selected_assets()
+        if len(selected) == 1 and _is_mod_marker(selected[0]):
+            target = selected[0].get_outermost().get_name()
+    except Exception as error:
+        unreal.log_warning('[modmarker] could not resolve current toolbar selection: {0}'.format(error))
+    target = target or fallback_package
+    if not target:
+        unreal.log_error('[modmarker] Refresh has no marker target; select/open a V2 marker and try again')
+        return
+    unreal.log('[modmarker] toolbar Refresh target: {0}'.format(target))
+    run_refresh(target)
 
 
 run_init = run_refresh  # first version's name
@@ -275,7 +300,8 @@ class ModMarkerToolbarSection(unreal.ToolMenuSectionDynamic):
                 entry.set_tool_tip('{0} ({1})'.format(tip, marker))
                 entry.set_string_command(
                     type=unreal.ToolMenuStringCommandType.PYTHON, custom_type=unreal.Name(''),
-                    string='import modmarker_menu; modmarker_menu.{0}(r"{1}")'.format(function, package))
+                    string='import modmarker_menu; modmarker_menu.{0}(r"{1}")'.format(
+                        'run_toolbar_refresh' if function == 'run_refresh' else function, package))
                 menu.add_menu_entry(TOOLBAR_SECTION, entry)
             menu.add_menu_entry_object(base._POPUP_TOGGLE)
             base._log('mod marker toolbar buttons added for ' + package)
