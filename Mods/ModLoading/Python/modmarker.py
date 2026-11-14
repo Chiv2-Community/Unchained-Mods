@@ -759,6 +759,10 @@ def refresh_marker(marker, dry_run=False, save=True, parents=None):
     mm = _mapmarker()
     package, asset = mm._load_marker(marker)
     result = init_marker(package, dry_run=dry_run, save=False, parents=parents)
+    # init_marker loads and mutates the same package independently. Reacquire
+    # it before continuing so toolbar/editor calls never operate on a stale
+    # Python wrapper after the marker has been refreshed.
+    package, asset = mm._load_marker(package)
     # the FULL marker tree (ancestors too): whether this marker is nested decides how its version is stamped
     tree = build_tree(set(find_markers()) | set([package]))
     result['removed_classes'] = sorted(nested_owned_classes(package, _paths(asset, P_CLASSES), tree))
