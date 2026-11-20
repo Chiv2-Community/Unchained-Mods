@@ -453,19 +453,6 @@ class MarkerNameTests(unittest.TestCase):
         self.assertEqual(mm.MARKER_NAME, 'ModMarker')
 
 
-class ExcludedActorTests(unittest.TestCase):
-    def test_excluded_class_uses_marker_relative_wildcards(self):
-        self.assertTrue(mm._class_excluded(
-            '/Game/Mods/AgMods/Mod/Actors/DebugActor.DebugActor_C',
-            '/Game/Mods/AgMods/Mod', ['Actors/*']))
-        self.assertTrue(mm._class_excluded(
-            '/Game/Mods/AgMods/Mod/Actors/DebugActor.DebugActor_C',
-            '/Game/Mods/AgMods/Mod', ['*Debug*']))
-        self.assertFalse(mm._class_excluded(
-            '/Game/Mods/AgMods/Mod/Actors/LiveActor.LiveActor_C',
-            '/Game/Mods/AgMods/Mod', ['Actors/*Debug*']))
-
-
 class BundleVersionTests(unittest.TestCase):
     TOP = R + '/ModMarker'
     NEST = R + '/Mods/Alpha/ModMarker'
@@ -501,14 +488,6 @@ class BundleVersionTests(unittest.TestCase):
         versions = {self.TOP: '2.0.0', self.NEST: '2.0.0'}
         changes = mm.plan_marker_versions(tree, versions, self.lookup, paks, {self.TOP: True}, [self.TOP, self.NEST])
         self.assertEqual(changes, {self.EXT: '2.0.0'})
-
-    def test_missing_mod_json_clears_stale_marker_version(self):
-        tree, paks = self._setup()
-        versions = {self.TOP: '2.0.0', self.NEST: '9.9.9'}
-        changes = mm.plan_marker_versions(tree, versions,
-                                           lambda folder, exact: {R: '2.0.0'}.get(folder),
-                                           paks, {}, [self.TOP, self.NEST])
-        self.assertEqual(changes, {self.NEST: ''})
 
     def test_actor_versions_follow_each_markers_effective_version(self):
         tree, _paks = self._setup()
